@@ -5,6 +5,7 @@
 #include "tests/cefsimple/simple_app.h"
 
 #include <string>
+#include <iostream>
 
 #include "include/cef_browser.h"
 #include "include/cef_command_line.h"
@@ -45,7 +46,7 @@ class SimpleWindowDelegate : public CefWindowDelegate {
   }
 
   CefSize GetPreferredSize(CefRefPtr<CefView> view) override {
-    return CefSize(800, 600);
+    return CefSize(1900, 600);
   }
 
  private:
@@ -103,17 +104,22 @@ void SimpleApp::OnContextInitialized() {
   // that instead of the default URL.
   url = command_line->GetSwitchValue("url");
   if (url.empty()) {
-    url = "http://www.google.com";
+    url = "http://www.baidu.com";
   }
 
   if (use_views) {
     // Create the BrowserView.
-    CefRefPtr<CefBrowserView> browser_view = CefBrowserView::CreateBrowserView(
+      auto browser_view = CefBrowserView::CreateBrowserView(
         handler, url, browser_settings, nullptr, nullptr,
         new SimpleBrowserViewDelegate());
 
+
     // Create the Window. It will show itself after creation.
-    CefWindow::CreateTopLevelWindow(new SimpleWindowDelegate(browser_view));
+      m_browser_window = CefWindow::CreateTopLevelWindow(new SimpleWindowDelegate(browser_view));
+
+      m_window_handle = m_browser_window->GetWindowHandle();
+      ::ShowWindow(m_window_handle,SW_HIDE);
+      //m_browser_window->Hide();
   } else {
     // Information used when creating the native window.
     CefWindowInfo window_info;
@@ -133,4 +139,9 @@ void SimpleApp::OnContextInitialized() {
 CefRefPtr<CefClient> SimpleApp::GetDefaultClient() {
   // Called when a new browser window is created via the Chrome runtime UI.
   return SimpleHandler::GetInstance();
+}
+
+CefWindowHandle SimpleApp::GetWindowHandle()
+{
+    return m_window_handle;
 }

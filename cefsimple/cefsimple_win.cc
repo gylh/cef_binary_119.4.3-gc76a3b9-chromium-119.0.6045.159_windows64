@@ -7,6 +7,10 @@
 #include "include/cef_command_line.h"
 #include "include/cef_sandbox_win.h"
 #include "tests/cefsimple/simple_app.h"
+#include "tests/cefsimple/simple_handler.h"
+
+#include <string>
+#include <iostream>
 
 // When generating projects with CMake the CEF_USE_SANDBOX value will be defined
 // automatically if using the required compiler version. Pass -DUSE_SANDBOX=OFF
@@ -83,6 +87,10 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
   settings.no_sandbox = true;
 #endif
 
+  if (command_line->HasSwitch("use-views")) {
+      settings.multi_threaded_message_loop = true;
+  }
+
   // SimpleApp implements application-level callbacks for the browser process.
   // It will create the first browser instance in OnContextInitialized() after
   // CEF has initialized.
@@ -90,10 +98,59 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 
   // Initialize CEF.
   CefInitialize(main_args, settings, app.get(), sandbox_info);
+ 
+  if (command_line->HasSwitch("use-views"))
+  {
+      while (!app->GetWindowHandle())
+      {
+          Sleep(100);
+      }
 
-  // Run the CEF message loop. This will block until CefQuitMessageLoop() is
-  // called.
-  CefRunMessageLoop();
+      while (true)
+      {
+          const int n = 258;
+          char buf[n] = { 0 };
+
+          std::cin.getline(buf, n);
+
+          if (buf[0] != 0)
+          {
+              std::string str(buf);
+              if (0 == str.compare("Show"))
+              {
+                  SimpleHandler::GetInstance()->SetVisible(true);
+              }
+              else if (0 == str.compare("WindowHandle"))
+              {
+                  std::cout << app->GetWindowHandle() << std::endl;
+              }
+              else if (0 == str.compare("RequestFocus"))
+              {
+                  SimpleHandler::GetInstance()->RequestFocus();
+              }
+              else if (0 == str.compare("Stop"))
+              {
+                  CefQuitMessageLoop();
+                  break;
+              }
+          }
+          else
+          {
+              Sleep(100);
+          }
+
+      }
+  } 
+  else 
+  {
+
+      // Run the CEF message loop. This will block until CefQuitMessageLoop() is
+      // called.
+      CefRunMessageLoop();
+  }
+  
+
+
 
   // Shut down CEF.
   CefShutdown();

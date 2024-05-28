@@ -6,6 +6,7 @@
 
 #include <sstream>
 #include <string>
+#include <iostream>
 
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -14,6 +15,7 @@
 #include "include/views/cef_window.h"
 #include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
+#include "include/internal/cef_types.h"
 
 namespace {
 
@@ -104,6 +106,36 @@ void SimpleHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   }
 }
 
+bool SimpleHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser, 
+    CefRefPtr<CefFrame> frame, 
+    const CefString& target_url, 
+    const CefString& target_frame_name, 
+    WindowOpenDisposition target_disposition, 
+    bool user_gesture, 
+    const CefPopupFeatures& popupFeatures, 
+    CefWindowInfo& windowInfo, 
+    CefRefPtr<CefClient>& client, 
+    CefBrowserSettings& settings, 
+    CefRefPtr<CefDictionaryValue>& extra_info, 
+    bool* no_javascript_access)
+{
+    switch (target_disposition)
+    {
+    case CEF_WOD_NEW_FOREGROUND_TAB:
+    case CEF_WOD_NEW_BACKGROUND_TAB:
+    case CEF_WOD_NEW_POPUP:
+    case CEF_WOD_NEW_WINDOW:
+        browser->GetMainFrame()->LoadURL(target_url);
+        return true; //cancel create
+    }
+    return false;
+}
+
+void SimpleHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model)
+{
+    model->Clear();
+}
+
 void SimpleHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
                                 CefRefPtr<CefFrame> frame,
                                 ErrorCode errorCode,
@@ -158,4 +190,32 @@ bool SimpleHandler::IsChromeRuntimeEnabled() {
     value = command_line->HasSwitch("enable-chrome-runtime") ? 1 : 0;
   }
   return value == 1;
+}
+
+void SimpleHandler::SetVisible(bool bVisible)
+{
+    if (!CefCurrentlyOn(TID_UI)) {
+        // Execute on the UI thread.
+        CefPostTask(TID_UI, base::BindOnce(&SimpleHandler::SetVisible, this, bVisible));
+        return;
+    }
+
+    for (auto browser : browser_list_) {
+        auto handle = browser->GetHost()->GetWindowHandle();
+        ::ShowWindow(handle, bVisible ? SW_SHOWNORMAL : SW_HIDE);
+    }
+}
+
+void SimpleHandler::RequestFocus()
+{
+    if (!CefCurrentlyOn(TID_UI)) {
+        // Execute on the UI thread.
+        CefPostTask(TID_UI, base::BindOnce(&SimpleHandler::RequestFocus, this));
+        return;
+    }
+
+    for (auto browser : browser_list_) {
+        auto handle = browser->GetHost()->GetWindowHandle();
+        ::SetFocus(handle);
+    }
 }

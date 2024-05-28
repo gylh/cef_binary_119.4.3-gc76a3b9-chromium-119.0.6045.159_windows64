@@ -7,6 +7,7 @@
 
 #include "include/cef_app.h"
 
+class CefWindow;
 // Implement application-level callbacks for the browser process.
 class SimpleApp : public CefApp, public CefBrowserProcessHandler {
  public:
@@ -21,7 +22,10 @@ class SimpleApp : public CefApp, public CefBrowserProcessHandler {
   void OnContextInitialized() override;
   CefRefPtr<CefClient> GetDefaultClient() override;
 
+  CefWindowHandle GetWindowHandle();
  private:
+     CefWindowHandle       m_window_handle{0};
+     CefRefPtr<CefWindow>  m_browser_window;
   // Include the default reference counting implementation.
   IMPLEMENT_REFCOUNTING(SimpleApp);
 };
