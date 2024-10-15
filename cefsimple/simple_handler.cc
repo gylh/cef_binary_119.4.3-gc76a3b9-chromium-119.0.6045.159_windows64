@@ -6,7 +6,6 @@
 
 #include <sstream>
 #include <string>
-#include <iostream>
 
 #include "include/base/cef_callback.h"
 #include "include/cef_app.h"
@@ -15,7 +14,6 @@
 #include "include/views/cef_window.h"
 #include "include/wrapper/cef_closure_task.h"
 #include "include/wrapper/cef_helpers.h"
-#include "include/internal/cef_types.h"
 
 namespace {
 
@@ -30,8 +28,8 @@ std::string GetDataURI(const std::string& data, const std::string& mime_type) {
 
 }  // namespace
 
-SimpleHandler::SimpleHandler(bool use_views)
-    : use_views_(use_views), is_closing_(false) {
+SimpleHandler::SimpleHandler(bool is_alloy_style)
+    : is_alloy_style_(is_alloy_style) {
   DCHECK(!g_instance);
   g_instance = this;
 }
@@ -49,17 +47,13 @@ void SimpleHandler::OnTitleChange(CefRefPtr<CefBrowser> browser,
                                   const CefString& title) {
   CEF_REQUIRE_UI_THREAD();
 
-  if (use_views_) {
+  if (auto browser_view = CefBrowserView::GetForBrowser(browser)) {
     // Set the title of the window using the Views framework.
-    CefRefPtr<CefBrowserView> browser_view =
-        CefBrowserView::GetForBrowser(browser);
-    if (browser_view) {
-      CefRefPtr<CefWindow> window = browser_view->GetWindow();
-      if (window) {
-        window->SetTitle(title);
-      }
+    CefRefPtr<CefWindow> window = browser_view->GetWindow();
+    if (window) {
+      window->SetTitle(title);
     }
-  } else if (!IsChromeRuntimeEnabled()) {
+  } else if (is_alloy_style_) {
     // Set the title of the window using platform APIs.
     PlatformTitleChange(browser, title);
   }
@@ -67,6 +61,10 @@ void SimpleHandler::OnTitleChange(CefRefPtr<CefBrowser> browser,
 
 void SimpleHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
   CEF_REQUIRE_UI_THREAD();
+
+  // Sanity-check the configured runtime style.
+  CHECK_EQ(is_alloy_style_ ? CEF_RUNTIME_STYLE_ALLOY : CEF_RUNTIME_STYLE_CHROME,
+           browser->GetHost()->GetRuntimeStyle());
 
   // Add to the list of existing browsers.
   browser_list_.push_back(browser);
@@ -106,36 +104,6 @@ void SimpleHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
   }
 }
 
-bool SimpleHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser, 
-    CefRefPtr<CefFrame> frame, 
-    const CefString& target_url, 
-    const CefString& target_frame_name, 
-    WindowOpenDisposition target_disposition, 
-    bool user_gesture, 
-    const CefPopupFeatures& popupFeatures, 
-    CefWindowInfo& windowInfo, 
-    CefRefPtr<CefClient>& client, 
-    CefBrowserSettings& settings, 
-    CefRefPtr<CefDictionaryValue>& extra_info, 
-    bool* no_javascript_access)
-{
-    switch (target_disposition)
-    {
-    case CEF_WOD_NEW_FOREGROUND_TAB:
-    case CEF_WOD_NEW_BACKGROUND_TAB:
-    case CEF_WOD_NEW_POPUP:
-    case CEF_WOD_NEW_WINDOW:
-        browser->GetMainFrame()->LoadURL(target_url);
-        return true; //cancel create
-    }
-    return false;
-}
-
-void SimpleHandler::OnBeforeContextMenu(CefRefPtr<CefBrowser> browser, CefRefPtr<CefFrame> frame, CefRefPtr<CefContextMenuParams> params, CefRefPtr<CefMenuModel> model)
-{
-    model->Clear();
-}
-
 void SimpleHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
                                 CefRefPtr<CefFrame> frame,
                                 ErrorCode errorCode,
@@ -144,7 +112,7 @@ void SimpleHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
   CEF_REQUIRE_UI_THREAD();
 
   // Allow Chrome to show the error page.
-  if (IsChromeRuntimeEnabled()) {
+  if (!is_alloy_style_) {
     return;
   }
 
@@ -161,6 +129,29 @@ void SimpleHandler::OnLoadError(CefRefPtr<CefBrowser> browser,
      << " (" << errorCode << ").</h2></body></html>";
 
   frame->LoadURL(GetDataURI(ss.str(), "text/html"));
+}
+
+void SimpleHandler::ShowMainWindow() {
+  if (!CefCurrentlyOn(TID_UI)) {
+    // Execute on the UI thread.
+    CefPostTask(TID_UI, base::BindOnce(&SimpleHandler::ShowMainWindow, this));
+    return;
+  }
+
+  if (browser_list_.empty()) {
+    return;
+  }
+
+  auto main_browser = browser_list_.front();
+
+  if (auto browser_view = CefBrowserView::GetForBrowser(main_browser)) {
+    // Show the window using the Views framework.
+    if (auto window = browser_view->GetWindow()) {
+      window->Show();
+    }
+  } else if (is_alloy_style_) {
+    PlatformShowWindow(main_browser);
+  }
 }
 
 void SimpleHandler::CloseAllBrowsers(bool force_close) {
@@ -181,41 +172,8 @@ void SimpleHandler::CloseAllBrowsers(bool force_close) {
   }
 }
 
-// static
-bool SimpleHandler::IsChromeRuntimeEnabled() {
-  static int value = -1;
-  if (value == -1) {
-    CefRefPtr<CefCommandLine> command_line =
-        CefCommandLine::GetGlobalCommandLine();
-    value = command_line->HasSwitch("enable-chrome-runtime") ? 1 : 0;
-  }
-  return value == 1;
+#if !defined(OS_MAC)
+void SimpleHandler::PlatformShowWindow(CefRefPtr<CefBrowser> browser) {
+  NOTIMPLEMENTED();
 }
-
-void SimpleHandler::SetVisible(bool bVisible)
-{
-    if (!CefCurrentlyOn(TID_UI)) {
-        // Execute on the UI thread.
-        CefPostTask(TID_UI, base::BindOnce(&SimpleHandler::SetVisible, this, bVisible));
-        return;
-    }
-
-    for (auto browser : browser_list_) {
-        auto handle = browser->GetHost()->GetWindowHandle();
-        ::ShowWindow(handle, bVisible ? SW_SHOWNORMAL : SW_HIDE);
-    }
-}
-
-void SimpleHandler::RequestFocus()
-{
-    if (!CefCurrentlyOn(TID_UI)) {
-        // Execute on the UI thread.
-        CefPostTask(TID_UI, base::BindOnce(&SimpleHandler::RequestFocus, this));
-        return;
-    }
-
-    for (auto browser : browser_list_) {
-        auto handle = browser->GetHost()->GetWindowHandle();
-        ::SetFocus(handle);
-    }
-}
+#endif

@@ -22,7 +22,6 @@ set(CEFSIMPLE_SRCS_MAC
   simple_handler_mac.mm
   )
 set(CEFSIMPLE_SRCS_WINDOWS
-  cefsimple.rc
   cefsimple_win.cc
   resource.h
   simple_handler_win.cc
@@ -30,8 +29,15 @@ set(CEFSIMPLE_SRCS_WINDOWS
 APPEND_PLATFORM_SOURCES(CEFSIMPLE_SRCS)
 source_group(cefsimple FILES ${CEFSIMPLE_SRCS})
 
+set(CEFSIMPLE_WIN_SRCS_WINDOWS
+  win/cefsimple.rc
+  )
+APPEND_PLATFORM_SOURCES(CEFSIMPLE_WIN_SRCS)
+source_group(cefsimple\\\\win FILES ${CEFSIMPLE_WIN_SRCS})
+
 set(CEFSIMPLE_SRCS
   ${CEFSIMPLE_SRCS}
+  ${CEFSIMPLE_WIN_SRCS}
   )
 
 # cefsimple helper sources.
@@ -43,7 +49,7 @@ source_group(cefsimple FILES ${CEFSIMPLE_HELPER_SRCS})
 
 # cefsimple resources.
 set(CEFSIMPLE_RESOURCES_MAC_SRCS_MAC
-  mac/Info.plist
+  mac/Info.plist.in
   mac/cefsimple.icns
   )
 APPEND_PLATFORM_SOURCES(CEFSIMPLE_RESOURCES_MAC_SRCS)
@@ -141,7 +147,7 @@ if(OS_MAC)
   add_dependencies(${CEF_TARGET} libcef_dll_wrapper)
   target_link_libraries(${CEF_TARGET} libcef_dll_wrapper ${CEF_STANDARD_LIBS})
   set_target_properties(${CEF_TARGET} PROPERTIES
-    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/mac/Info.plist
+    MACOSX_BUNDLE_INFO_PLIST ${CMAKE_CURRENT_SOURCE_DIR}/mac/Info.plist.in
     )
 
   # Copy the CEF framework into the Frameworks directory.
@@ -171,7 +177,7 @@ if(OS_MAC)
     # MACOSX_BUNDLE_INFO_PLIST) uses global env variables and would insert the
     # wrong values with multiple targets.
     set(_helper_info_plist "${CMAKE_CURRENT_BINARY_DIR}/helper-Info${_target_suffix}.plist")
-    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mac/helper-Info.plist" _plist_contents)
+    file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mac/helper-Info.plist.in" _plist_contents)
     string(REPLACE "\${EXECUTABLE_NAME}" "${_helper_output_name}" _plist_contents ${_plist_contents})
     string(REPLACE "\${PRODUCT_NAME}" "${_helper_output_name}" _plist_contents ${_plist_contents})
     string(REPLACE "\${BUNDLE_ID_SUFFIX}" "${_plist_suffix}" _plist_contents ${_plist_contents})
@@ -232,7 +238,7 @@ if(OS_WINDOWS)
   endif()
 
   # Add the custom manifest files to the executable.
-  ADD_WINDOWS_MANIFEST("${CMAKE_CURRENT_SOURCE_DIR}" "${CEF_TARGET}" "exe")
+  ADD_WINDOWS_MANIFEST("${CMAKE_CURRENT_SOURCE_DIR}/win" "${CEF_TARGET}" "exe")
 
   # Copy binary and resource files to the target output directory.
   COPY_FILES("${CEF_TARGET}" "${CEF_BINARY_FILES}" "${CEF_BINARY_DIR}" "${CEF_TARGET_OUT_DIR}")
