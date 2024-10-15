@@ -21,6 +21,10 @@ class SimpleApp : public CefApp, public CefBrowserProcessHandler {
   void OnContextInitialized() override;
   CefRefPtr<CefClient> GetDefaultClient() override;
 
+  bool OnAlreadyRunningAppRelaunch(
+      CefRefPtr<CefCommandLine> command_line,
+      const CefString& current_directory) override;
+
  private:
   // Include the default reference counting implementation.
   IMPLEMENT_REFCOUNTING(SimpleApp);

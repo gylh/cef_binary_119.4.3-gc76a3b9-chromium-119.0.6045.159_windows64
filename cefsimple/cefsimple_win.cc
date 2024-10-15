@@ -4,9 +4,17 @@
 
 #include <windows.h>
 
+
+#include <windows.h>
+#include <shlobj.h>
+#include "Shlwapi.h"
+
 #include "include/cef_command_line.h"
 #include "include/cef_sandbox_win.h"
 #include "tests/cefsimple/simple_app.h"
+#include <functional> 
+#include <filesystem> 
+namespace fs = std::filesystem;
 
 // When generating projects with CMake the CEF_USE_SANDBOX value will be defined
 // automatically if using the required compiler version. Pass -DUSE_SANDBOX=OFF
@@ -19,6 +27,8 @@
 // versions.
 #pragma comment(lib, "cef_sandbox.lib")
 #endif
+
+
 
 // Entry point function for all processes.
 int APIENTRY wWinMain(HINSTANCE hInstance,
@@ -73,6 +83,28 @@ int APIENTRY wWinMain(HINSTANCE hInstance,
 
   // Specify CEF global settings here.
   CefSettings settings;
+
+
+  TCHAR szPath[MAX_PATH];
+  *szPath = 0;
+
+  // 获取缓存路径，首先获取用户目录，失败则获取程序目录
+  if (SUCCEEDED(SHGetFolderPath(NULL, CSIDL_LOCAL_APPDATA | CSIDL_FLAG_CREATE, NULL, 0, szPath))) {
+      PathAppend(szPath, TEXT("\\CEF\\"));
+  } else if(GetModuleFileName(nullptr, szPath, MAX_PATH) > 0) {
+      PathRemoveFileSpec(szPath);
+      PathAppend(szPath, TEXT("\\..\\..\\usr\\CEF\\"));
+  }
+
+  if (*szPath != 0)
+  {
+      // 根据url生成哈希值，避免单例进程模式
+      std::hash<std::wstring> hash_fn;
+      auto url = command_line->GetSwitchValue("url");
+
+      PathAppend(szPath, std::to_wstring(hash_fn(url)).c_str());
+      CefString(&settings.root_cache_path) = szPath;
+  }
 
 #if !defined(CEF_USE_SANDBOX)
   settings.no_sandbox = true;
